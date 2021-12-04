@@ -5,11 +5,11 @@ const ArrayList = std.ArrayList;
 const fixedBufferStream = std.io.fixedBufferStream;
 const expect = std.testing.expect;
 
-pub fn parseInput(input: anytype) !ArrayList(u5) {
+pub fn parseInput(input: anytype) !ArrayList(u12) {
     var buf: [1024]u8 = undefined;
-    var list = ArrayList(u5).init(test_allocator);
+    var list = ArrayList(u12).init(test_allocator);
     while (try input.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        var i: u5 = try std.fmt.parseUnsigned(u5, line, 2);
+        var i: u12 = try std.fmt.parseUnsigned(u12, line, 2);
         try list.append(i);
     }
     return list;
@@ -18,15 +18,15 @@ pub fn parseInput(input: anytype) !ArrayList(u5) {
 //pub fn arrToNum() {
 //}
 
-pub fn calcPower(nums: []u5) !usize {
-    var sums = [5]usize{ 0, 0, 0, 0, 0 };
+pub fn calcPower(nums: []u12) !usize {
+    var sums = [12]usize{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     for (nums) |n| {
-        var shift: u3 = 0;
-        while (shift < 5) {
-            var bit: u64 = @intCast(u8, 1) << shift;
+        var shift: u6 = 0;
+        while (shift < 12) {
+            var bit: u64 = @as(u64, 1) << shift;
 
             if (bit & n != 0) {
-                sums[4 - shift] += 1;
+                sums[11 - shift] += 1;
             }
             //std.debug.print("bit: {}\n", .{bit & n});
             shift += 1;
@@ -39,7 +39,7 @@ pub fn calcPower(nums: []u5) !usize {
     }
 
     std.debug.print("{s}\n", .{"--------------"});
-    var res = [5]usize{ 0, 0, 0, 0, 0 };
+    var res = [12]usize{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
     for (sums) |sum, idx| {
         if (sum > nums.len / 2) {
@@ -47,13 +47,13 @@ pub fn calcPower(nums: []u5) !usize {
         }
         std.debug.print("{}", .{res[idx]});
     }
-    var b: [5]u8 = undefined;
-    _ = try bufPrint(&b, "{}{}{}{}{}", .{ res[0], res[1], res[2], res[3], res[4] });
+    var b: [12]u8 = undefined;
+    _ = try bufPrint(&b, "{}{}{}{}{}{}{}{}{}{}{}{}", .{ res[0], res[1], res[2], res[3], res[4], res[5], res[6], res[7], res[8], res[9], res[10], res[11] });
     var slice = b[0..];
 
     std.debug.print("\n{s}\n", .{slice});
 
-    const gamma = try std.fmt.parseUnsigned(u5, slice, 2);
+    const gamma = try std.fmt.parseUnsigned(u12, slice, 2);
     std.debug.print("gamma: {}\n", .{gamma});
     const epsilon = ~gamma;
     std.debug.print("epsilon: {}\n", .{epsilon});
@@ -82,6 +82,16 @@ test "sample1" {
     for (list.items) |i| {
         std.debug.print("{}\n", .{i});
     }
+    // const power = try calcPower(list.items);
+    // try expect(power == 198);
+}
+
+test "part1" {
+    var file = try std.fs.cwd().openFile("input.txt", .{});
+    defer file.close();
+    var buf_stream = std.io.bufferedReader(file.reader());
+    var list = try parseInput(buf_stream.reader());
+    defer list.deinit();
     const power = try calcPower(list.items);
-    try expect(power == 198);
+    std.debug.print("Part 1: {}\n", .{power});
 }
