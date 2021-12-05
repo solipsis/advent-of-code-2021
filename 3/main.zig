@@ -77,19 +77,16 @@ pub fn calcPowerSample(nums: []u5) !usize {
 //      swapRemove
 //   }
 
-pub fn filter(arr: *ArrayList(u5)) void {
-    std.debug.print("Type: {s}\n", .{@TypeOf(arr)});
-    _ = arr.swapRemove(1);
-}
+pub fn filterSample(samples: *ArrayList(u5), bitIdx: u3, invert: bool) !void {
+    std.debug.print("bitIdx: {}\n", .{bitIdx});
+    if (samples.items.len == 1) {
+        return;
+    }
 
-pub fn filterSample(samples: *ArrayList(u5), bitIdx: u3) !void {
-    //samples.swapRemove(1);
-
+    // Track whether more ones or zeroes
     var ones: isize = 0;
     for (samples.items) |n| {
-        var bit: u64 = @as(u8, 1) << bitIdx;
-
-        if (bit & n != 0) {
+        if ((n >> bitIdx) & 1 == 1) {
             ones += 1;
         } else {
             ones -= 1;
@@ -102,18 +99,26 @@ pub fn filterSample(samples: *ArrayList(u5), bitIdx: u3) !void {
         target = 1;
     }
 
+    if (invert) {
+        if (target == 1) {
+            target = 0;
+        } else {
+            target = 1;
+        }
+    }
+
     std.debug.print("target: {}\n", .{target});
     outer: while (true) {
         for (samples.items) |item, idx| {
             var b: [5]u8 = undefined;
             _ = try bufPrint(&b, "{b:0>5}", .{item});
-            std.debug.print("{s}: {}\n", .{ b, item });
+            //            std.debug.print("{s}: {}\n", .{ b, item });
 
             // var bit: u64 = @as(u8, 1) << bitIdx;
             if ((item >> bitIdx) & 1 != target) {
                 //   if ((bit & item) != target) {
                 _ = samples.swapRemove(idx);
-                std.debug.print("deleting: {}\n", .{item});
+                //               std.debug.print("deleting: {}\n", .{item});
                 continue :outer;
             }
         }
@@ -125,14 +130,77 @@ pub fn calcOxygenSample(starting: *ArrayList(u5)) !usize {
     var bitIdx: isize = 4;
     while (bitIdx >= 0) {
         std.debug.print("{s}\n", .{"FFFFFFFFFFF"});
-        try filterSample(starting, @intCast(u3, bitIdx));
+        try filterSample(starting, @intCast(u3, bitIdx), false);
         for (starting.items) |rem| {
             std.debug.print("rem: {}\n", .{rem});
         }
         bitIdx -= 1;
     }
 
-    return 0;
+    return starting.items[0];
+}
+
+pub fn calcOxygen(starting: *ArrayList(u12)) !usize {
+    var bitIdx: isize = 11;
+    while (bitIdx >= 0) {
+        std.debug.print("{s}\n", .{"FFFFFFFFFFF"});
+        try filter(starting, @intCast(u4, bitIdx), true);
+        for (starting.items) |rem| {
+            std.debug.print("rem: {}\n", .{rem});
+        }
+        bitIdx -= 1;
+    }
+
+    return starting.items[0];
+}
+
+pub fn filter(samples: *ArrayList(u12), bitIdx: u4, invert: bool) !void {
+    std.debug.print("bitIdx: {}\n", .{bitIdx});
+    if (samples.items.len == 1) {
+        return;
+    }
+
+    // Track whether more ones or zeroes
+    var ones: isize = 0;
+    for (samples.items) |n| {
+        if ((n >> bitIdx) & 1 == 1) {
+            ones += 1;
+        } else {
+            ones -= 1;
+        }
+    }
+    std.debug.print("sum: {}\n", .{ones});
+
+    var target: usize = 0;
+    if (ones >= 0) {
+        target = 1;
+    }
+
+    if (invert) {
+        if (target == 1) {
+            target = 0;
+        } else {
+            target = 1;
+        }
+    }
+
+    std.debug.print("target: {}\n", .{target});
+    outer: while (true) {
+        for (samples.items) |item, idx| {
+            var b: [12]u8 = undefined;
+            _ = try bufPrint(&b, "{b:0>12}", .{item});
+            //            std.debug.print("{s}: {}\n", .{ b, item });
+
+            // var bit: u64 = @as(u8, 1) << bitIdx;
+            if ((item >> bitIdx) & 1 != target) {
+                //   if ((bit & item) != target) {
+                _ = samples.swapRemove(idx);
+                //               std.debug.print("deleting: {}\n", .{item});
+                continue :outer;
+            }
+        }
+        break :outer;
+    }
 }
 
 pub fn calcPower(nums: []u12) !usize {
@@ -201,15 +269,18 @@ test "sample1" {
     }
     //  var power = try calcPowerSample(list.items);
     // try expect(power == 198);
-    _ = try calcOxygenSample(&list);
+    const last = try calcOxygenSample(&list);
+    std.debug.print("last: {}\n", .{last});
 }
 
 test "part1" {
-    //  var file = try std.fs.cwd().openFile("input.txt", .{});
-    //defer file.close();
-    //var buf_stream = std.io.bufferedReader(file.reader());
-    //var list = try parseInput(buf_stream.reader());
-    //defer list.deinit();
+    var file = try std.fs.cwd().openFile("input.txt", .{});
+    defer file.close();
+    var buf_stream = std.io.bufferedReader(file.reader());
+    var list = try parseInput(buf_stream.reader());
+    defer list.deinit();
     //const power = try calcPower(list.items);
     //  std.debug.print("Part 1: {}\n", .{power});
+    const last = try calcOxygen(&list);
+    std.debug.print("last: {}\n", .{last});
 }
