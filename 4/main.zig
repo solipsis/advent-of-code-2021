@@ -5,6 +5,7 @@ const fixedBufferStream = std.io.fixedBufferStream;
 
 const Board = struct {
     buf: [25]isize,
+    chosen: [25]bool,
 };
 
 pub fn parse(input: anytype, nums: *ArrayList(isize), boards: *ArrayList(Board)) !void {
@@ -44,13 +45,29 @@ pub fn parse(input: anytype, nums: *ArrayList(isize), boards: *ArrayList(Board))
     std.debug.print("len: {}\n", .{boards.items.len});
 }
 
+pub fn draw_til_last(boards: *ArrayList(Board), num: isize, winning_boards: *std.AutoHashMap(u32, bool)) !void {
+    const needle = [_]isize{num};
+    const num_complete: usize = 0;
+    for (boards.items) |*board, board_idx| {
+        if (std.mem.indexOfPos(isize, board.buf[0..], 0, needle[0..])) |idx| {
+            board.chosen[idx] = true;
+            std.debug.print("found: {} at {}\n", .{ num, idx });
+            if (check_victory(board.chosen)) {
+                try winning_boards.put(@intCast(u32, board_idx), true);
+            }
+        }
+    }
+}
+
 pub fn draw_num(boards: *ArrayList(Board), num: isize) ?usize {
     const needle = [_]isize{num};
     for (boards.items) |*board, board_idx| {
         if (std.mem.indexOfPos(isize, board.buf[0..], 0, needle[0..])) |idx| {
-            board.buf[idx] *= -1;
+            board.chosen[idx] = true;
             std.debug.print("found: {} at {}\n", .{ num, idx });
-            if (check_victory(board.buf)) {
+            if (check_victory(board.chosen)) {
+                std.debug.print("hooray---------\n", .{});
+
                 return board_idx;
             }
         }
@@ -58,7 +75,7 @@ pub fn draw_num(boards: *ArrayList(Board), num: isize) ?usize {
     return null;
 }
 
-pub fn check_victory(board: [25]isize) bool {
+pub fn check_victory(chosen: [25]bool) bool {
     const v1 = [_]usize{ 0, 5, 10, 15, 20 };
     const v2 = [_]usize{ 1, 6, 11, 16, 21 };
     const v3 = [_]usize{ 2, 7, 12, 17, 22 };
@@ -80,21 +97,28 @@ pub fn check_victory(board: [25]isize) bool {
     for (all_conditions) |cond| {
         var pass = true;
         for (cond) |idx| {
-            if (board[idx] > 0) {
+            std.debug.print("why idx: {}", .{idx});
+            std.debug.print("chosen_idx: {}", .{chosen[idx]});
+            //  if (chosen[idx] != true) {
+            if (chosen[idx] != true) {
+                std.debug.print("reject:", .{});
                 pass = false;
             }
+
+            std.debug.print("\nPassEndOfLoop: {}\n", .{pass});
         }
         if (pass) {
+            std.debug.print("\nPassed\n", .{});
             return true;
         }
     }
     return false;
 }
 
-pub fn sum_unmarked(board: [25]isize) isize {
+pub fn sum_unmarked(board: [25]isize, chosen: [25]bool) isize {
     var sum: isize = 0;
-    for (board) |num| {
-        if (num > 0) {
+    for (board) |num, idx| {
+        if (chosen[idx] != true) {
             sum += num;
         }
     }
@@ -114,6 +138,18 @@ pub fn print_board(board: [25]isize) void {
     var idx: usize = 0;
     while (idx < 25) {
         for (board[idx .. idx + 5]) |num| {
+            std.debug.print("{},", .{num});
+        }
+        std.debug.print("\n", .{});
+        idx += 5;
+    }
+}
+
+pub fn print_chosen(chosen: [25]bool) void {
+    std.debug.print("\n----------------\n", .{});
+    var idx: usize = 0;
+    while (idx < 25) {
+        for (chosen[idx .. idx + 5]) |num| {
             std.debug.print("{},", .{num});
         }
         std.debug.print("\n", .{});
@@ -153,25 +189,64 @@ test "sample1" {
     var fbs = fixedBufferStream(input);
 
     try parse(fbs.reader(), &nums, &boards);
-    //_ = draw_num(&boards, 5);
 
-    var winning_number: isize = -1;
+    var winning_boards = std.AutoHashMap(u32, bool).init(
+        test_allocator,
+    );
+    defer winning_boards.deinit();
+
+    var missing: usize = 0;
     for (nums.items) |num| {
-        if (draw_num(&boards, num)) |idx| {
-            winning_number = num;
-            std.debug.print("winning_number: {}\n", .{winning_number});
-            var sum = sum_unmarked(boards.items[idx].buf);
+        try draw_til_last(&boards, num, &winning_boards);
+        // if only 1 not complete see which one
+        if (winning_boards.count() == boards.items.len - 1) {
+            var counter: u32 = 0;
+            while (counter < boards.items.len) {
+                if (!winning_boards.contains(counter)) {
+                    missing = counter;
+                }
+                counter += 1;
+            }
+        }
+        // we are done
+        if (winning_boards.count() == boards.items.len) {
+            var sum = sum_unmarked(boards.items[missing].buf, boards.items[missing].chosen);
+            var product = sum * @intCast(isize, num);
             std.debug.print("sum: {}\n", .{sum});
-
-            // std.debug.print("Done: {}\n", .{idx});
-            // print_board(boards.items[idx].buf);
-            var product: isize = num * sum_unmarked(boards.items[idx].buf);
-
-            std.debug.print("Part 1: {}\n", .{product});
-
-            break;
+            std.debug.print("missing: {}\n", .{missing});
+            std.debug.print("last_num: {}\n", .{num});
+            std.debug.print("Part 2: {}\n", .{product});
+            return;
         }
     }
+
+    //try map.put(1, true);
+    //std.debug.print("{}\n", .{map.count()});
+
+    //_ = draw_num(&boards, 5);
+    //
+    //
+
+    //var winning_boards = std.AutoHashMap(usize, bool).init(test_allocator);
+    //defer winning_boards.deinit();
+
+    // var winning_number: isize = -1;
+    //for (nums.items) |num| {
+    //if (draw_num(&boards, num)) |idx| {
+    //winning_number = num;
+
+    //print_chosen(boards.items[0].chosen);
+    //std.debug.print("winning_number: {}\n", .{winning_number});
+    //var sum = sum_unmarked(boards.items[idx].buf, boards.items[idx].chosen);
+    //std.debug.print("sum: {}\n", .{sum});
+
+    //var product: isize = num * sum;
+
+    //std.debug.print("Part 1: {}\n", .{product});
+
+    //break;
+    //}
+    // }
 }
 
 test "part1" {
@@ -191,16 +266,59 @@ test "part1" {
         if (draw_num(&boards, num)) |idx| {
             winning_number = num;
             std.debug.print("winning_number: {}\n", .{winning_number});
-            var sum = sum_unmarked(boards.items[idx].buf);
+            var sum = sum_unmarked(boards.items[idx].buf, boards.items[idx].chosen);
             std.debug.print("sum: {}\n", .{sum});
 
             // std.debug.print("Done: {}\n", .{idx});
             // print_board(boards.items[idx].buf);
-            var product: isize = num * sum_unmarked(boards.items[idx].buf);
+            var product: isize = num * sum;
 
             std.debug.print("Part 1: {}\n", .{product});
 
             break;
+        }
+    }
+}
+
+test "part2" {
+    var file = try std.fs.cwd().openFile("input.txt", .{ .read = true });
+    defer file.close();
+
+    var nums = ArrayList(isize).init(test_allocator);
+    var boards = ArrayList(Board).init(test_allocator);
+    defer nums.deinit();
+    defer boards.deinit();
+
+    var buf_stream = std.io.bufferedReader(file.reader());
+    try parse(buf_stream.reader(), &nums, &boards);
+
+    var winning_boards = std.AutoHashMap(u32, bool).init(
+        test_allocator,
+    );
+    defer winning_boards.deinit();
+
+    var missing: usize = 0;
+    for (nums.items) |num| {
+        try draw_til_last(&boards, num, &winning_boards);
+        // if only 1 not complete see which one
+        if (winning_boards.count() == boards.items.len - 1) {
+            var counter: u32 = 0;
+            while (counter < boards.items.len) {
+                if (!winning_boards.contains(counter)) {
+                    missing = counter;
+                }
+                counter += 1;
+            }
+        }
+        // we are done
+        if (winning_boards.count() == boards.items.len) {
+            var sum = sum_unmarked(boards.items[missing].buf, boards.items[missing].chosen);
+            var product = sum * @intCast(isize, num);
+            std.debug.print("sum: {}\n", .{sum});
+            std.debug.print("missing: {}\n", .{missing});
+            std.debug.print("last_num: {}\n", .{num});
+            std.debug.print("Part 2: {}\n", .{product});
+            return;
         }
     }
 }
