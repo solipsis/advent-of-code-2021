@@ -100,7 +100,7 @@ pub fn check_victory(chosen: [25]bool) bool {
             std.debug.print("why idx: {}", .{idx});
             std.debug.print("chosen_idx: {}", .{chosen[idx]});
             //  if (chosen[idx] != true) {
-            if (chosen[idx] != true) {
+            if (!chosen[idx]) {
                 std.debug.print("reject:", .{});
                 pass = false;
             }
@@ -118,7 +118,7 @@ pub fn check_victory(chosen: [25]bool) bool {
 pub fn sum_unmarked(board: [25]isize, chosen: [25]bool) isize {
     var sum: isize = 0;
     for (board) |num, idx| {
-        if (chosen[idx] != true) {
+        if (!chosen[idx]) {
             sum += num;
         }
     }
