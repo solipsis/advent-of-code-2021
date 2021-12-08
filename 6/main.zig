@@ -44,7 +44,7 @@ pub fn count_fish(state: [9]isize) isize {
     return sum;
 }
 
-test "sample 1" {
+test "sample" {
     const input = "3,4,3,1,2";
     var fbs = fixedBufferStream(input);
 
@@ -58,11 +58,19 @@ test "sample 1" {
     }
 
     const count = count_fish(state);
-    std.debug.print("count: {}\n", .{count});
+    std.debug.print("sample1: {}\n", .{count});
     try expect(count == 5934);
+
+    while (i < 256) : (i += 1) {
+        state = simulate_day(state);
+    }
+
+    const count2 = count_fish(state);
+    std.debug.print("sample2: {}\n", .{count2});
+    try expect(count2 == 26984457539);
 }
 
-test "part 1" {
+test "actual" {
     var file = try std.fs.cwd().openFile("input.txt", .{ .read = true });
     defer file.close();
 
@@ -72,9 +80,15 @@ test "part 1" {
     var i: usize = 0;
     while (i < 80) : (i += 1) {
         state = simulate_day(state);
-        //    std.debug.print("state: {any}\n", .{state});
     }
 
     const count = count_fish(state);
-    std.debug.print("count: {}\n", .{count});
+    std.debug.print("part 1: {}\n", .{count});
+
+    while (i < 256) : (i += 1) {
+        state = simulate_day(state);
+    }
+
+    const count2 = count_fish(state);
+    std.debug.print("part 2: {}\n", .{count2});
 }

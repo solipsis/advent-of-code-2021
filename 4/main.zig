@@ -321,4 +321,6 @@ test "part2" {
             return;
         }
     }
+
+    for (
 }
