@@ -20,15 +20,6 @@ pub fn parse(reader: anytype) !ArrayList(Line) {
     defer test_allocator.free(buf);
 
     var Lines = ArrayList(Line).init(test_allocator);
-
-    std.debug.print("last: {c}\n", .{buf[buf.len - 5]});
-    std.debug.print("last: {c}\n", .{buf[buf.len - 4]});
-    std.debug.print("last: {c}\n", .{buf[buf.len - 3]});
-    std.debug.print("last: {c}\n", .{buf[buf.len - 2]});
-    std.debug.print("last: {c}\n", .{buf[buf.len - 1]});
-    std.debug.print("last: {x}\n", .{buf[buf.len - 1]});
-    std.debug.print("last: {}\n", .{buf[buf.len - 1]});
-
     var line_it = std.mem.split(buf, "\n");
     while (line_it.next()) |raw_line| {
         if (raw_line.len == 0) {
@@ -55,21 +46,16 @@ pub fn parse(reader: anytype) !ArrayList(Line) {
     return Lines;
 }
 
-pub fn calc_overlap(lines: []Line) !isize {
+pub fn calc_overlap(lines: []Line, include_diagonals: bool) !isize {
     var point_map = std.AutoHashMap(Point, isize).init(test_allocator);
     defer point_map.deinit();
 
     for (lines) |line| {
-
-        // only consider horizontal and vertical lines
-        if (!(line.x1 == line.x2 or line.y1 == line.y2)) {
-            continue;
-        }
-
         var p1 = Point{ .x = line.x1, .y = line.y1 };
         var p2 = Point{ .x = line.x2, .y = line.y2 };
 
         if (p1.x == p2.x) {
+            //            std.debug.print("x: {} {}\n", .{ p1, p2 });
             var start = std.math.min(p1.y, p2.y);
             var end = std.math.max(p1.y, p2.y);
 
@@ -78,8 +64,8 @@ pub fn calc_overlap(lines: []Line) !isize {
                 const existing = try point_map.getOrPutValue(current, 0);
                 try point_map.put(current, existing.value_ptr.* + 1);
             }
-        }
-        if (p1.y == p2.y) {
+        } else if (p1.y == p2.y) {
+            //std.debug.print("y: {} {}\n", .{ p1, p2 });
             var start = std.math.min(p1.x, p2.x);
             var end = std.math.max(p1.x, p2.x);
 
@@ -88,13 +74,34 @@ pub fn calc_overlap(lines: []Line) !isize {
                 const existing = try point_map.getOrPutValue(current, 0);
                 try point_map.put(current, existing.value_ptr.* + 1);
             }
+        } else if (include_diagonals) {
+            //std.debug.print("diagonal {} {}\n", .{ p1, p2 });
+            var xmod: isize = 1;
+            var ymod: isize = 1;
+            if (p1.x > p2.x) {
+                xmod = -1;
+            }
+            if (p1.y > p2.y) {
+                ymod = -1;
+            }
+
+            var new = Point{ .x = p1.x, .y = p1.y };
+            while (new.x != p2.x) {
+                //std.debug.print("put {}\n", .{new});
+                const existing = try point_map.getOrPutValue(new, 0);
+                try point_map.put(new, existing.value_ptr.* + 1);
+                new.x += xmod;
+                new.y += ymod;
+            }
+            // 1 final point at the destination
+            const existing = try point_map.getOrPutValue(new, 0);
+            try point_map.put(new, existing.value_ptr.* + 1);
         }
     }
 
     var sum: isize = 0;
     var map_iter = point_map.iterator();
     while (map_iter.next()) |entry| {
-        //  std.debug.print("key: {}, val: {}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
         if (entry.value_ptr.* >= 2) {
             sum += 1;
         }
@@ -122,8 +129,11 @@ test "sample1" {
     defer lines.deinit();
     std.debug.print("num_lines: {}\n", .{lines.items.len});
 
-    var sum = try calc_overlap(lines.items);
+    var sum = try calc_overlap(lines.items, false);
     std.debug.print("sample 1: {}\n", .{sum});
+
+    var sum2 = try calc_overlap(lines.items, true);
+    std.debug.print("sample 2: {}\n", .{sum2});
 }
 
 test "part 1" {
@@ -132,8 +142,10 @@ test "part 1" {
 
     var lines = try parse(file.reader());
     defer lines.deinit();
-    std.debug.print("num_lines: {}\n", .{lines.items.len});
 
-    var sum = try calc_overlap(lines.items);
-    std.debug.print("sample 1: {}\n", .{sum});
+    var sum = try calc_overlap(lines.items, false);
+    std.debug.print("part 1: {}\n", .{sum});
+    var sum2 = try calc_overlap(lines.items, true);
+    std.debug.print("part 2: {}\n", .{sum2});
+    //std.debug.print("sample 1: {}\n", .{sum});
 }
