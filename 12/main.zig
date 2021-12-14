@@ -47,6 +47,13 @@ pub fn isLowercase(str: []const u8) bool {
     return true;
 }
 
+//pub fn maxLowercase(items []const u8) {
+//for (items) |item| {
+//if (isLowercase(items))
+//}
+
+//}
+
 pub fn explore(caves: StringHashMap(ArrayList([]const u8)), cur_path: *ArrayList([]const u8)) AllocationError!usize {
 
     // if at "end" print out path, then pop() and return
@@ -57,7 +64,7 @@ pub fn explore(caves: StringHashMap(ArrayList([]const u8)), cur_path: *ArrayList
     var complete_paths: usize = 0;
     var last: []const u8 = cur_path.items[cur_path.items.len - 1];
     outer: for (caves.get(last).?.items) |neighbor| {
-        std.debug.print("visiting: {s}\n", .{neighbor});
+        // std.debug.print("visiting: {s}\n", .{neighbor});
         // don't visit lowercase twice
         if (isLowercase(neighbor)) {
             for (cur_path.items) |item| {
@@ -71,13 +78,68 @@ pub fn explore(caves: StringHashMap(ArrayList([]const u8)), cur_path: *ArrayList
         _ = cur_path.pop();
     }
 
-    // for each connected cave in caves.get(cur)
-    // if lowercase and cur_path contains it already skip
-    // explore(connected)
-    // pop()
-    //
-    // shouldn't need to worry about freeing path strings because they are tied to buffer
-    // still need to deinit ArrayList from main
+    return complete_paths;
+}
+
+pub fn explore2(caves: StringHashMap(ArrayList([]const u8)), visited: StringHashMap(usize), cur_path: *ArrayList([]const u8)) AllocationError!usize {
+
+    // if at "end" print out path, then pop() and return
+    if (std.mem.eql(u8, cur_path.items[cur_path.items.len - 1], "end")) {
+        std.debug.print("end", .{});
+        return 1;
+    }
+
+    var complete_paths: usize = 0;
+    var last: []const u8 = cur_path.items[cur_path.items.len - 1];
+    outer: for (caves.get(last).?.items) |neighbor| {
+        //
+        //
+        // can't visit start again
+        if (std.mem.eql(u8, neighbor, "start")) {
+            continue;
+        }
+        // only 1 lowercase can be visited twice
+        if (isLowercase(neighbor)) {
+            var max: usize = 0;
+            var already2: bool = false;
+            var it = visited.iterator();
+            while (it.next()) |entry| {
+                if (entry.value_ptr.* > max) {
+                    max = entry.value_ptr.*;
+                }
+                if (entry.value_ptr.* == 2) {
+                    already2 = true;
+                }
+            }
+
+            if (visited.get(neighbor).? == 2) {
+                continue :outer;
+            }
+            if (visited.get(neighbor).? == 1 and already2) {
+                continue :outer;
+            }
+
+            //  for (cur_path.items) |item| {
+            //      if (std.mem.eql(u8, item, neighbor)) {
+            //          continue :outer;
+            //      }
+            //  }
+        }
+        std.debug.print("visiting: {s}\n", .{neighbor});
+        try cur_path.append(neighbor);
+        if (isLowercase(neighbor)) {
+            var ptr = visited.getPtr(neighbor).?;
+            ptr.* += 1;
+        }
+        complete_paths += try explore2(caves, visited, cur_path);
+        _ = cur_path.pop();
+
+        if (isLowercase(neighbor)) {
+            var ptr = visited.getPtr(neighbor).?;
+            ptr.* -= 1;
+            //try visited.getPtr(neighbor) -= 1;
+        }
+    }
 
     return complete_paths;
 }
@@ -85,6 +147,42 @@ pub fn explore(caves: StringHashMap(ArrayList([]const u8)), cur_path: *ArrayList
 const AllocationError = error{
     OutOfMemory,
 };
+
+test "sample 2" {
+    std.debug.print("\n", .{});
+    const input =
+        \\dc-end
+        \\HN-start
+        \\start-kj
+        \\dc-start
+        \\dc-HN
+        \\LN-dc
+        \\HN-end
+        \\kj-sa
+        \\kj-HN
+        \\kj-dc
+    ;
+    var fbs = std.io.fixedBufferStream(input);
+    var buf = try fbs.reader().readAllAlloc(test_allocator, 999999);
+    defer test_allocator.free(buf);
+    var trimmed = std.mem.trim(u8, buf, "\n"); // file trailing newline
+
+    var m = try parse(trimmed);
+    defer {
+        var it = m.iterator();
+        while (it.next()) |entry| {
+            entry.value_ptr.*.deinit();
+        }
+        m.deinit();
+    }
+
+    var cur_path = ArrayList([]const u8).init(test_allocator);
+    defer cur_path.deinit();
+
+    try cur_path.append("start");
+    var num_paths = try explore(m, &cur_path);
+    std.debug.print("sample 2: {}\n", .{num_paths});
+}
 
 test "sample 1" {
     std.debug.print("\n", .{});
@@ -111,13 +209,47 @@ test "sample 1" {
         m.deinit();
     }
 
+    var visited = StringHashMap(usize).init(test_allocator);
+    defer visited.deinit();
+
     var map_it = m.iterator();
     while (map_it.next()) |entry| {
-        std.debug.print("entry: {s}\n", .{entry.key_ptr.*});
+        // std.debug.print("entry: {s}\n", .{entry.key_ptr.*});
         for (entry.value_ptr.*.items) |item| {
-            std.debug.print("| {s}, ", .{item});
+            try visited.put(item, 0);
+            //    std.debug.print("| {s}, ", .{item});
         }
-        std.debug.print("\n", .{});
+        //  std.debug.print("\n", .{});
+    }
+
+    var cur_path = ArrayList([]const u8).init(test_allocator);
+    defer cur_path.deinit();
+
+    try visited.put("start", 1);
+
+    try cur_path.append("start");
+    //var num_paths = try explore(m, &cur_path);
+    // std.debug.print("sample 1: {}\n", .{num_paths});
+    var num_paths = try explore2(m, visited, &cur_path);
+    std.debug.print("sample 1 Part2: {}\n", .{num_paths});
+}
+
+test "part 1" {
+    std.debug.print("\n", .{});
+    var file = try std.fs.cwd().openFile("input.txt", .{ .read = true });
+    defer file.close();
+
+    var buf = try file.reader().readAllAlloc(test_allocator, 999999);
+    defer test_allocator.free(buf);
+    var trimmed = std.mem.trim(u8, buf, "\n"); // file trailing newline
+
+    var m = try parse(trimmed);
+    defer {
+        var it = m.iterator();
+        while (it.next()) |entry| {
+            entry.value_ptr.*.deinit();
+        }
+        m.deinit();
     }
 
     var cur_path = ArrayList([]const u8).init(test_allocator);
@@ -125,5 +257,5 @@ test "sample 1" {
 
     try cur_path.append("start");
     var num_paths = try explore(m, &cur_path);
-    std.debug.print("sample 1: {}\n", .{num_paths});
+    std.debug.print("part 1: {}\n", .{num_paths});
 }
