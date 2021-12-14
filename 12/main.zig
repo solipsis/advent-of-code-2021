@@ -85,7 +85,6 @@ pub fn explore2(caves: StringHashMap(ArrayList([]const u8)), visited: StringHash
 
     // if at "end" print out path, then pop() and return
     if (std.mem.eql(u8, cur_path.items[cur_path.items.len - 1], "end")) {
-        std.debug.print("end", .{});
         return 1;
     }
 
@@ -118,14 +117,8 @@ pub fn explore2(caves: StringHashMap(ArrayList([]const u8)), visited: StringHash
             if (visited.get(neighbor).? == 1 and already2) {
                 continue :outer;
             }
-
-            //  for (cur_path.items) |item| {
-            //      if (std.mem.eql(u8, item, neighbor)) {
-            //          continue :outer;
-            //      }
-            //  }
         }
-        std.debug.print("visiting: {s}\n", .{neighbor});
+        //     std.debug.print("visiting: {s}\n", .{neighbor});
         try cur_path.append(neighbor);
         if (isLowercase(neighbor)) {
             var ptr = visited.getPtr(neighbor).?;
@@ -258,4 +251,17 @@ test "part 1" {
     try cur_path.append("start");
     var num_paths = try explore(m, &cur_path);
     std.debug.print("part 1: {}\n", .{num_paths});
+
+    var visited = StringHashMap(usize).init(test_allocator);
+    defer visited.deinit();
+
+    var map_it = m.iterator();
+    while (map_it.next()) |entry| {
+        for (entry.value_ptr.*.items) |item| {
+            try visited.put(item, 0);
+        }
+    }
+
+    num_paths = try explore2(m, visited, &cur_path);
+    std.debug.print("Part 2: {}\n", .{num_paths});
 }
