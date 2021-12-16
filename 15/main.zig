@@ -51,8 +51,12 @@ pub fn hyper_grid(orig: Grid) !Grid {
     return Grid{ .width = hyper_width, .risk = hyper_arr };
 }
 
+// Originally used recursive version below, but caused me to go over
+// stack frame limit for large input
 pub fn update_norecurse(risk: []usize, width: usize, cost: []usize) void {
+    // special case for initial value
     cost[0] = 0;
+
     var was_update = true;
     while (was_update) {
         was_update = false;
@@ -83,10 +87,6 @@ pub fn update_norecurse(risk: []usize, width: usize, cost: []usize) void {
 }
 
 pub fn update(risk: []usize, width: usize, cost: []usize, idx: usize) void {
-    // create cost grid same size as risk // TODO: initialize outside of this
-    // initialize all vals to inifity except top left to 0
-    //std.debug.print("idx: {}\n", .{idx});
-
     const prev_cost = cost[idx];
 
     // special case for initial value
@@ -113,13 +113,13 @@ pub fn update(risk: []usize, width: usize, cost: []usize, idx: usize) void {
     // if the cost of this cell changed, update all adjacent
     if (cost[idx] != prev_cost) {
         if (row >= 1) { // above
-            //      update(risk, width, cost, idx - width);
+            update(risk, width, cost, idx - width);
         }
         if (row != (risk.len / width) - 1) { //below
             update(risk, width, cost, idx + width);
         }
         if (col > 0) { // left
-            //    update(risk, width, cost, idx - 1);
+            update(risk, width, cost, idx - 1);
         }
         if (col != width - 1) { // right
             update(risk, width, cost, idx + 1);
@@ -139,7 +139,8 @@ test "part 1" {
     defer test_allocator.free(initial_cost);
     std.mem.set(usize, initial_cost, INF);
 
-    update(grid.risk.items, grid.width, initial_cost, 0);
+    //update(grid.risk.items, grid.width, initial_cost, 0);
+    update_norecurse(grid.risk.items, grid.width, initial_cost);
     std.debug.print("Part 1: {}\n", .{initial_cost[initial_cost.len - 1]});
 
     var hyper = try hyper_grid(grid);
@@ -149,11 +150,9 @@ test "part 1" {
     defer test_allocator.free(hyper_initial_cost);
     std.mem.set(usize, hyper_initial_cost, INF);
 
-    std.debug.print("len: {}\n", .{hyper.risk.items.len});
-    std.debug.print("width: {}\n", .{hyper.width});
-    update(hyper.risk.items, hyper.width, hyper_initial_cost, 0);
-
     //update(hyper.risk.items, hyper.width, hyper_initial_cost, 0);
+    update_norecurse(hyper.risk.items, hyper.width, hyper_initial_cost);
+
     std.debug.print("Part 2: {}\n", .{hyper_initial_cost[hyper_initial_cost.len - 1]});
 }
 
