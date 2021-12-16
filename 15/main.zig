@@ -51,9 +51,41 @@ pub fn hyper_grid(orig: Grid) !Grid {
     return Grid{ .width = hyper_width, .risk = hyper_arr };
 }
 
+pub fn update_norecurse(risk: []usize, width: usize, cost: []usize) void {
+    cost[0] = 0;
+    var was_update = true;
+    while (was_update) {
+        was_update = false;
+
+        for (risk) |item, idx| {
+            const prev_cost = cost[idx];
+
+            // update costs to reach this cell from adjacent
+            var row = @divFloor(idx, width);
+            var col = idx % width;
+            if (row >= 1) { // above
+                cost[idx] = std.math.min(cost[idx], cost[idx - width] + risk[idx]);
+            }
+            if (row != (risk.len / width) - 1) { //below
+                cost[idx] = std.math.min(cost[idx], cost[idx + width] + risk[idx]);
+            }
+            if (col > 0) { // left
+                cost[idx] = std.math.min(cost[idx], cost[idx - 1] + risk[idx]);
+            }
+            if (col != width - 1) { // right
+                cost[idx] = std.math.min(cost[idx], cost[idx + 1] + risk[idx]);
+            }
+            if (prev_cost != cost[idx]) {
+                was_update = true;
+            }
+        }
+    }
+}
+
 pub fn update(risk: []usize, width: usize, cost: []usize, idx: usize) void {
     // create cost grid same size as risk // TODO: initialize outside of this
     // initialize all vals to inifity except top left to 0
+    //std.debug.print("idx: {}\n", .{idx});
 
     const prev_cost = cost[idx];
 
@@ -81,13 +113,13 @@ pub fn update(risk: []usize, width: usize, cost: []usize, idx: usize) void {
     // if the cost of this cell changed, update all adjacent
     if (cost[idx] != prev_cost) {
         if (row >= 1) { // above
-            update(risk, width, cost, idx - width);
+            //      update(risk, width, cost, idx - width);
         }
         if (row != (risk.len / width) - 1) { //below
             update(risk, width, cost, idx + width);
         }
         if (col > 0) { // left
-            update(risk, width, cost, idx - 1);
+            //    update(risk, width, cost, idx - 1);
         }
         if (col != width - 1) { // right
             update(risk, width, cost, idx + 1);
@@ -117,8 +149,12 @@ test "part 1" {
     defer test_allocator.free(hyper_initial_cost);
     std.mem.set(usize, hyper_initial_cost, INF);
 
+    std.debug.print("len: {}\n", .{hyper.risk.items.len});
+    std.debug.print("width: {}\n", .{hyper.width});
+    update(hyper.risk.items, hyper.width, hyper_initial_cost, 0);
+
     //update(hyper.risk.items, hyper.width, hyper_initial_cost, 0);
-    //std.debug.print("Part 2: {}\n", .{hyper_initial_cost[hyper_initial_cost.len - 1]});
+    std.debug.print("Part 2: {}\n", .{hyper_initial_cost[hyper_initial_cost.len - 1]});
 }
 
 test "sample 1" {
@@ -151,9 +187,10 @@ test "sample 1" {
     //}
     //   }
 
-    update(grid.risk.items, grid.width, initial_cost, 0);
-    try expect(initial_cost[initial_cost.len - 1] == 40);
+    //update(grid.risk.items, grid.width, initial_cost, 0);
+    update_norecurse(grid.risk.items, grid.width, initial_cost);
     std.debug.print("Sample 1: {}\n", .{initial_cost[initial_cost.len - 1]});
+    try expect(initial_cost[initial_cost.len - 1] == 40);
 
     var hyper = try hyper_grid(grid);
     defer hyper.risk.deinit();
@@ -162,18 +199,19 @@ test "sample 1" {
     defer test_allocator.free(hyper_initial_cost);
     std.mem.set(usize, hyper_initial_cost, INF);
 
-    for (hyper.risk.items) |val, idx| {
-        std.debug.print("{}", .{val});
-        if ((idx + 1) % hyper.width == 0) {
-            //std.debug.print("idx: {}\n", .{idx});
-            std.debug.print("\n", .{});
-        }
-    }
+    // for (hyper.risk.items) |val, idx| {
+    //std.debug.print("{}", .{val});
+    //if ((idx + 1) % hyper.width == 0) {
+    //std.debug.print("\n", .{});
+    //}
+    // }
     //std.debug.print("\nsize: {}\n", .{hyper.risk.items.len});
     //std.debug.print("\nwidth: {}\n", .{hyper.width});
 
-    update(hyper.risk.items, hyper.width, hyper_initial_cost, 0);
+    //update(hyper.risk.items, hyper.width, hyper_initial_cost, 0);
+    update_norecurse(hyper.risk.items, hyper.width, hyper_initial_cost);
     std.debug.print("Sample 2: {}\n", .{hyper_initial_cost[hyper_initial_cost.len - 1]});
+    try expect(hyper_initial_cost[hyper_initial_cost.len - 1] == 315);
 
     //   for (initial_cost) |val, idx| {
     //std.debug.print("{},", .{val});
@@ -184,7 +222,7 @@ test "sample 1" {
 }
 
 pub fn parse(reader: anytype) !Grid {
-    var buf = try reader.readAllAlloc(test_allocator, 999999);
+    var buf = try reader.readAllAlloc(test_allocator, 9999999);
     defer test_allocator.free(buf);
     var trimmed = std.mem.trim(u8, buf, "\n");
 
