@@ -66,8 +66,6 @@ pub fn efficient_calc(template: []const u8, reps: usize, rules: StringHashMap(u8
         try counts.put(key, counts.get(key).? + 1);
     }
 
-    //
-
     var ctr: usize = 0;
     while (ctr < reps) : (ctr += 1) {
         // create copy of current values
@@ -94,11 +92,6 @@ pub fn efficient_calc(template: []const u8, reps: usize, rules: StringHashMap(u8
             try counts.put(xz_key[0..], counts.get(xz_key[0..]).? + val);
             try counts.put(zy_key[0..], counts.get(zy_key[0..]).? + val);
         }
-
-        count_it = counts.iterator();
-        while (count_it.next()) |entry| {
-            std.debug.print("after: {s} : {}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-        }
     }
 
     // counts. Sum all letters from all keys
@@ -122,22 +115,18 @@ pub fn efficient_calc(template: []const u8, reps: usize, rules: StringHashMap(u8
     // divide each entry by 2
     var sums_it = sums.iterator();
     while (sums_it.next()) |entry| {
-        if (entry.value_ptr.* % 2 != 0) {
-            std.debug.print("WHYYYYY\n", .{});
-        }
         entry.value_ptr.* = @divExact(entry.value_ptr.*, 2);
     }
-    // re-add adges
+    // re-add edges
     sums.getPtr(left_edge).?.* += 1;
     sums.getPtr(right_edge).?.* += 1;
 
     sums_it = sums.iterator();
-    var min: usize = 999999999999;
+    var min: usize = @bitCast(usize, @intCast(isize, -1));
     var max: usize = 0;
     while (sums_it.next()) |entry| {
         min = std.math.min(min, entry.value_ptr.*);
         max = std.math.max(max, entry.value_ptr.*);
-        std.debug.print("count: {c} : {}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
     }
 
     return max - min;
@@ -164,7 +153,7 @@ pub fn calc(str: []const u8) !void {
         buf[byte] += 1;
     }
 
-    var min: usize = 99999999999;
+    var min: usize = 99999999999999;
     var max: usize = 0;
     var max_idx: usize = 0;
     var min_idx: usize = 0;
@@ -210,24 +199,23 @@ test "sample 1" {
     var in = try parse(trimmed);
     defer in.rules.deinit();
 
-    var rule_it = in.rules.iterator();
-    while (rule_it.next()) |entry| {
-        std.debug.print("rule: {s} : {c}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-    }
-
     var template = ArrayList(u8).init(test_allocator);
     defer template.deinit();
     try template.appendSlice(in.template);
 
-    var done = try efficient_calc(template.items, 40, in.rules);
-    std.debug.print("sample 2: {}\n", .{done});
-
+    // inefficient part 1
+    //
     //var ctr: usize = 0;
     //while (ctr < 10) : (ctr += 1) {
     //try expand(&template, in.rules);
     //std.debug.print("res: {s}\n", .{template.items});
     //}
     //try calc(template.items);
+
+    var part1 = try efficient_calc(template.items, 10, in.rules);
+    try expect(part1 == 1588);
+    var part2 = try efficient_calc(template.items, 40, in.rules);
+    try expect(part2 == 2188189693529);
 }
 
 test "part 1" {
@@ -242,23 +230,8 @@ test "part 1" {
     var in = try parse(trimmed);
     defer in.rules.deinit();
 
-    var rule_it = in.rules.iterator();
-    while (rule_it.next()) |entry| {
-        // std.debug.print("rule: {s} : {c}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
-    }
-
-    var template = ArrayList(u8).init(test_allocator);
-    defer template.deinit();
-    try template.appendSlice(in.template);
-
-    _ = try efficient_calc(template.items, 1, in.rules);
-
-    //   var ctr: usize = 0;
-    //while (ctr < 40) : (ctr += 1) {
-    //std.debug.print("{}\n", .{ctr});
-    //std.debug.print("{}\n", .{template.items.len});
-    //try expand(&template, in.rules);
-    //// std.debug.print("res: {s}\n", .{template.items});
-    //}
-    //   try calc(template.items);
+    var part1 = try efficient_calc(in.template, 10, in.rules);
+    std.debug.print("part 1: {}\n", .{part1});
+    var part2 = try efficient_calc(in.template, 40, in.rules);
+    std.debug.print("part 2: {}\n", .{part2});
 }
