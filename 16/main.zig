@@ -31,7 +31,6 @@ const Parser = struct {
     idx: usize,
 
     fn parsePacket(self: *Parser) ParserError!Packet {
-        std.debug.print("parsePacket\n", .{});
         var version: u3 = try self.readu3();
         var packet_type: u3 = try self.readu3();
         var sub_packets = ArrayList(Packet).init(test_allocator);
@@ -39,7 +38,6 @@ const Parser = struct {
         // Literal
         if (packet_type == 4) {
             const i = try self.parseLiteral();
-            std.debug.print("literal_val: {}\n", .{i});
             return Packet{ .version = version, .packet_type = packet_type, .val = i, .sub_packets = sub_packets };
         }
 
@@ -47,11 +45,8 @@ const Parser = struct {
         if (length_type_id == 0) {
             var sub_packet_bit_length = try self.readu15();
             var bit_target = self.idx + sub_packet_bit_length;
-            std.debug.print("sub_packet_bit_length: {}\n", .{sub_packet_bit_length});
 
             while (self.idx < bit_target) {
-                std.debug.print("idx: {}\n", .{self.idx});
-                std.debug.print("parse_subpacket\n", .{});
                 try sub_packets.append(try self.parsePacket());
             }
         } else {
@@ -64,20 +59,41 @@ const Parser = struct {
         var val: u64 = 0;
         switch (packet_type) {
             0 => { // sum
-                for (packet.sub_packets.items) |sub| {
+                for (sub_packets.items) |sub| {
                     val += sub.val;
                 }
             },
             1 => { // product
                 val = 1;
-                for (packet.sub_packets.items) |sub| {
+                for (sub_packets.items) |sub| {
                     val *= sub.val;
                 }
             },
             2 => { // min
                 val = 99999999;
-                for (packet.sub_packets.items) |sub| {
-                    val = @min(val, sub.val);
+                for (sub_packets.items) |sub| {
+                    val = std.math.min(val, sub.val);
+                }
+            },
+            3 => { // max
+                for (sub_packets.items) |sub| {
+                    val = std.math.max(val, sub.val);
+                }
+            },
+            4 => unreachable,
+            5 => { // greater
+                if (sub_packets.items[0].val > sub_packets.items[1].val) {
+                    val = 1;
+                }
+            },
+            6 => { // less
+                if (sub_packets.items[0].val < sub_packets.items[1].val) {
+                    val = 1;
+                }
+            },
+            7 => { // equal
+                if (sub_packets.items[0].val == sub_packets.items[1].val) {
+                    val = 1;
                 }
             },
         }
@@ -86,7 +102,6 @@ const Parser = struct {
     }
 
     fn parseLiteral(self: *Parser) !u64 {
-        std.debug.print("parseLiteral\n", .{});
         var literal = ArrayList(u8).init(test_allocator);
         defer literal.deinit();
 
@@ -104,8 +119,6 @@ const Parser = struct {
         var i: u64 = try std.fmt.parseUnsigned(u64, literal.items, 2);
         return i;
     }
-
-    fn parseType(self: *Parser) !u3 {}
 
     fn readBit(self: *Parser) !u1 {
         var i: u1 = try std.fmt.parseUnsigned(u1, self.buf[self.idx .. self.idx + 1], 2);
@@ -205,7 +218,8 @@ pub fn sumVersions(p: Packet) u64 {
     return sum;
 }
 
-test "part 1" {
+test "part 1 + 2" {
+    std.debug.print("\n", .{});
     const input = "2056FA18025A00A4F52AB13FAB6CDA779E1B2012DB003301006A35C7D882200C43289F07A5A192D200C1BC011969BA4A485E63D8FE4CC80480C00D500010F8991E23A8803104A3C425967260020E551DC01D98B5FEF33D5C044C0928053296CDAFCB8D4BDAA611F256DE7B945220080244BE59EE7D0A5D0E6545C0268A7126564732552F003194400B10031C00C002819C00B50034400A70039C009401A114009201500C00B00100D00354300254008200609000D39BB5868C01E9A649C5D9C4A8CC6016CC9B4229F3399629A0C3005E797A5040C016A00DD40010B8E508615000213112294749B8D67EC45F63A980233D8BCF1DC44FAC017914993D42C9000282CB9D4A776233B4BF361F2F9F6659CE5764EB9A3E9007ED3B7B6896C0159F9D1EE76B3FFEF4B8FCF3B88019316E51DA181802B400A8CFCC127E60935D7B10078C01F8B50B20E1803D1FA21C6F300661AC678946008C918E002A72A0F27D82DB802B239A63BAEEA9C6395D98A001A9234EA620026D1AE5CA60A900A4B335A4F815C01A800021B1AE2E4441006A0A47686AE01449CB5534929FF567B9587C6A214C6212ACBF53F9A8E7D3CFF0B136FD061401091719BC5330E5474000D887B24162013CC7EDDCDD8E5E77E53AF128B1276D0F980292DA0CD004A7798EEEC672A7A6008C953F8BD7F781ED00395317AF0726E3402100625F3D9CB18B546E2FC9C65D1C20020E4C36460392F7683004A77DB3DB00527B5A85E06F253442014A00010A8F9106108002190B61E4750004262BC7587E801674EB0CCF1025716A054AD47080467A00B864AD2D4B193E92B4B52C64F27BFB05200C165A38DDF8D5A009C9C2463030802879EB55AB8010396069C413005FC01098EDD0A63B742852402B74DF7FDFE8368037700043E2FC2C8CA00087C518990C0C015C00542726C13936392A4633D8F1802532E5801E84FDF34FCA1487D367EF9A7E50A43E90";
     var bin = try hexToBinary(input);
     defer {
@@ -217,8 +231,5 @@ test "part 1" {
     defer packet.deinit();
     var sum_versions = sumVersions(packet);
     std.debug.print("part 1: {}\n", .{sum_versions});
+    std.debug.print("part 2: {}\n", .{packet.val});
 }
-
-//const input = std.mem.trim(u8, @embedFile("../input/day16.txt"), " \n");
-//
-
