@@ -17,13 +17,17 @@ const Node = struct {
     id: usize = 0,
     left: ?*Node = null,
     right: ?*Node = null,
+    parent: ?*Node = null,
+    allocator: *Allocator,
     val: ?isize,
 
-    fn init(self: *Node, id: usize) void {
+    fn init(self: *Node, id: usize, parent: ?*Node, allocator: *Allocator) void {
         self.left = null;
         self.right = null;
+        self.parent = null;
         self.val = null;
         self.id = id;
+        self.allocator = allocator;
     }
 };
 
@@ -39,7 +43,7 @@ const Parser = struct {
 
         // root
         self.root = try self.allocator.create(Node);
-        self.root.init(self.next_id);
+        self.root.init(self.next_id, null, self.allocator);
         self.next_id += 1;
         //self.root.id = self.next_id;
         //self.root.left = null;
@@ -53,16 +57,17 @@ const Parser = struct {
             var tok = try self.read();
             // create node
             if (std.mem.eql(u8, tok, "[")) {
+                var current_node = self.stack.items[self.stack.items.len - 1];
+
                 std.debug.print("L_BRACKET\n", .{});
                 var p = try self.allocator.create(Node);
-                p.init(self.next_id);
+                p.init(self.next_id, current_node, self.allocator);
                 self.next_id += 1;
                 //    p.id = self.next_id;
                 //    p.left = null;
                 //    p.right = null;
                 //    p.val = -1;
                 //    self.next_id += 1;
-                var current_node = self.stack.items[self.stack.items.len - 1];
 
                 // TODO: Why is current_node.left evaluating as true right from the beginning???????????
                 // probably need to write INIT function for nodes
@@ -93,7 +98,7 @@ const Parser = struct {
                 std.debug.print("LITERAL\n", .{});
                 var current_node = self.stack.items[self.stack.items.len - 1];
                 var literal = try self.allocator.create(Node);
-                literal.init(self.next_id);
+                literal.init(self.next_id, current_node, self.allocator);
                 self.next_id += 1;
                 var val = try std.fmt.parseInt(isize, tok, 10);
                 literal.val = val;
@@ -146,7 +151,7 @@ const Parser = struct {
     }
 };
 
-const ParserError = error{OutOfMemory} || std.fmt.ParseIntError;
+const ParserError = error{OutOfMemory} || std.fmt.ParseIntError || error{DivisionByZero};
 
 fn inOrder(n: *Node, res: *ArrayList(*Node)) ParserError!void {
     if (n.left) |left| {
@@ -157,6 +162,122 @@ fn inOrder(n: *Node, res: *ArrayList(*Node)) ParserError!void {
         try inOrder(right, res);
     }
 }
+
+fn split(n: *Node) !void {
+    var l_val = try std.math.divFloor(isize, n.val.?, 2);
+    var r_val = try std.math.divCeil(isize, n.val.?, 2);
+
+    // convert from literal node to pair
+    n.val = null;
+
+    var left = try n.allocator.create(Node);
+    left.init(99999, n, n.allocator);
+    left.val = l_val;
+    var right = try n.allocator.create(Node);
+    right.init(999999, n, n.allocator);
+    right.val = r_val;
+
+    n.left = left;
+    n.right = right;
+}
+
+fn explode(parent: *Node, inOrderTree: ArrayList(*Node)) void {
+    var lhs = parent.left.?;
+    var rhs = parent.right.?;
+    // find idx of target in inOrder
+    var idx: usize = 0;
+    for (inOrderTree.items) |item, i| {
+        if (item.id == parent.id) {
+            idx = i;
+            break;
+        }
+    }
+
+    // update first literal to the left
+    var ctr: isize = @intCast(isize, idx);
+    while (ctr >= 0) : (ctr -= 1) {
+        if (inOrderTree.items[@intCast(usize, ctr)].id == lhs.id) {
+            continue;
+        }
+        if (inOrderTree.items[@intCast(usize, ctr)].val) |val| {
+            inOrderTree.items[@intCast(usize, ctr)].val.? += lhs.val.?;
+            break;
+        }
+    }
+    // update first literal to the right
+    ctr = @intCast(isize, idx);
+    while (ctr < inOrderTree.items.len) : (ctr += 1) {
+        if (inOrderTree.items[@intCast(usize, ctr)].id == rhs.id) {
+            continue;
+        }
+        if (inOrderTree.items[@intCast(usize, ctr)].val) |val| {
+            inOrderTree.items[@intCast(usize, ctr)].val.? += rhs.val.?;
+            break;
+        }
+    }
+    // turn parent into a literal node
+    parent.left = null;
+    parent.right = null;
+    parent.val = 0;
+}
+
+fn reduce_explode(n: *Node, depth: usize, inOrderTree: ArrayList(*Node)) bool {
+    //  std.debug.print("depth: {}: {any}\n\n", .{ depth, n });
+    if (depth == 4 and n.val == null) {
+        //     std.debug.print("exploding... {any}\n", .{n});
+        explode(n, inOrderTree);
+        return true;
+    }
+    if (n.left) |left| {
+        if (reduce_explode(left, depth + 1, inOrderTree)) {
+            return true; // exit if we found an action to do
+        }
+    }
+    if (n.right) |right| {
+        if (reduce_explode(right, depth + 1, inOrderTree)) {
+            return true; // exit if we found an action to do
+        }
+    }
+    return false;
+}
+
+fn reduce_split(n: *Node) ParserError!bool {
+
+    // in-order traversal looking for first val >= 10
+    if (n.left) |left| {
+        if (try reduce_split(left)) {
+            return true;
+        }
+    }
+    if (n.val) |val| {
+        if (val >= 10) {
+            try split(n);
+            return true;
+        }
+    }
+    if (n.right) |right| {
+        if (try reduce_split(right)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+//pub fn printNode(n: *Node) void {
+////std.debug.print("n: {}\n", .{n});
+//if (n.left) |left| {
+//std.debug.print("[", .{});
+//print(left);
+//}
+//if (n.right) |right| {
+//std.debug.print(",", .{});
+//print(right);
+//std.debug.print("]", .{});
+//}
+//if (n.val) |val| {
+//std.debug.print("{}", .{val});
+//}
+//}
 
 pub fn print(n: *Node) void {
     //std.debug.print("n: {}\n", .{n});
@@ -181,6 +302,24 @@ pub fn print(n: *Node) void {
 // find first regular to right
 
 //}
+//
+pub fn reduce(n: *Node, allocator: *Allocator) !void {
+    while (true) {
+        var inOrderNodes = ArrayList(*Node).init(allocator);
+        defer inOrderNodes.deinit();
+        try inOrder(n, &inOrderNodes);
+
+        if (reduce_explode(n, 0, inOrderNodes)) {
+            std.debug.print("explode\n", .{});
+            continue;
+        }
+        if (try reduce_split(n)) {
+            std.debug.print("split\n", .{});
+            continue;
+        }
+        break;
+    }
+}
 
 test "blah" {
     std.debug.print("\n-------------------------\n", .{});
@@ -193,10 +332,21 @@ test "blah" {
     //var buf = "[[1,9],[8,5]]";
     //var buf = "[[[[1,2],[3,4]],[[5,6],[7,8]]],9]";
     //var buf = "[[[9,[3,8]],[[0,9],6]],[[[3,7],[4,9]],3]]";
-    var buf = "[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]";
+    //var buf = "[[[[1,3],[5,3]],[[1,3],[8,7]]],[[[4,9],[6,9]],[[8,2],[7,3]]]]";
+    //var buf = "[[[[[9,8],1],2],3],4]";
+    //var buf = "[[6,[5,[4,[3,2]]]],1]";
+    //var buf = "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]";
+    //var buf = "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]";
+    //var buf = "[[[[0,7],4],[15,[0,13]]],[1,1]]";
+    var buf = "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]";
+
+    // The subitem depth calc is not quite right
+    // explode should trigger at only [3,2] not also at [4
+    //var buf = "[7,[6,[5,[4,[3,2]]]]";
+
     var stack = ArrayList(*Node).init(&arena.allocator);
     //try alloc_stuff(&arena.allocator);
-    var parser = Parser{ .allocator = &arena.allocator, .buffer = buf, .idx = 0, .stack = stack, .next_id = 5 };
+    var parser = Parser{ .allocator = &arena.allocator, .buffer = buf, .idx = 0, .stack = stack, .next_id = 0 };
     _ = try parser.parse();
 
     std.debug.print("root_id: {}\n", .{parser.root.id});
@@ -209,8 +359,25 @@ test "blah" {
         if (n.val) |val| {
             std.debug.print("{},", .{val});
         }
-        std.debug.print("\n", .{});
     }
+    std.debug.print("\n", .{});
+
+    std.debug.print("reducing...\n", .{});
+    try reduce(parser.root.left.?, &arena.allocator);
+    print(parser.root.left.?);
+    std.debug.print("\n", .{});
+
+    //_ = reduce_explode(parser.root.left.?, 0, inOrderNodes);
+    // _ = try reduce_split(parser.root.left.?);
+    //std.debug.print("\n", .{});
+    //print(parser.root.left.?);
+    //std.debug.print("\n", .{});
+    //_ = try reduce_split(parser.root.left.?);
+    //print(parser.root.left.?);
+    //std.debug.print("\n", .{});
+    //_ = try reduce_explode(parser.root.left.?);
+    //print(parser.root.left.?);
+    // std.debug.print("\n", .{});
 }
 
 pub fn alloc_stuff(allocator: *Allocator) !void {
