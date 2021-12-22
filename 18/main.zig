@@ -12,6 +12,8 @@ const ArrayList = std.ArrayList;
 ////depth: usize = 0,
 
 //};
+//
+var next_id: usize = 0;
 
 const Node = struct {
     id: usize = 0,
@@ -36,21 +38,21 @@ const Parser = struct {
     idx: usize = 0,
     stack: ArrayList(*Node),
     allocator: *Allocator,
-    next_id: usize = 0,
+    // next_id: usize = 0,
     root: *Node = undefined,
 
     fn parse(self: *Parser) !void {
 
         // root
         self.root = try self.allocator.create(Node);
-        self.root.init(self.next_id, null, self.allocator);
-        self.next_id += 1;
+        self.root.init(next_id, null, self.allocator);
+        next_id += 1;
         //self.root.id = self.next_id;
         //self.root.left = null;
         //self.root.right = null;
         try self.stack.append(self.root);
         if (self.root.left) |left| {
-            std.debug.print("Garbo\n", .{});
+            //std.debug.print("Garbo\n", .{});
         }
 
         while (self.idx < self.buffer.len) {
@@ -59,10 +61,10 @@ const Parser = struct {
             if (std.mem.eql(u8, tok, "[")) {
                 var current_node = self.stack.items[self.stack.items.len - 1];
 
-                std.debug.print("L_BRACKET\n", .{});
+                //std.debug.print("L_BRACKET\n", .{});
                 var p = try self.allocator.create(Node);
-                p.init(self.next_id, current_node, self.allocator);
-                self.next_id += 1;
+                p.init(next_id, current_node, self.allocator);
+                next_id += 1;
                 //    p.id = self.next_id;
                 //    p.left = null;
                 //    p.right = null;
@@ -74,8 +76,8 @@ const Parser = struct {
 
                 // already have a left child so this must be right
                 if (current_node.left) |left_pair| {
-                    std.debug.print("add_right: \n", .{});
-                    std.debug.print("lp: {}\n", .{left_pair});
+                    //std.debug.print("add_right: \n", .{});
+                    //std.debug.print("lp: {}\n", .{left_pair});
                     current_node.right = p;
                 }
                 // else if (current_node.val) |val| { // same as above
@@ -83,23 +85,23 @@ const Parser = struct {
                 //    current_node.right = p;
                 else { // must be left side
 
-                    std.debug.print("add_left: \n", .{});
+                    //std.debug.print("add_left: \n", .{});
                     current_node.left = p;
                 }
                 //  p.id = self.next_id;
                 // self.next_id += 1;
                 try self.stack.append(p);
-                std.debug.print("root1: {}\n", .{self.root});
+                //std.debug.print("root1: {}\n", .{self.root});
             } else if (std.mem.eql(u8, tok, "]")) {
-                std.debug.print("R_BRACKET\n", .{});
+                //std.debug.print("R_BRACKET\n", .{});
                 _ = self.stack.pop();
-                std.debug.print("root2: {}\n", .{self.root});
+                //std.debug.print("root2: {}\n", .{self.root});
             } else { // literal
-                std.debug.print("LITERAL\n", .{});
+                //std.debug.print("LITERAL\n", .{});
                 var current_node = self.stack.items[self.stack.items.len - 1];
                 var literal = try self.allocator.create(Node);
-                literal.init(self.next_id, current_node, self.allocator);
-                self.next_id += 1;
+                literal.init(next_id, current_node, self.allocator);
+                next_id += 1;
                 var val = try std.fmt.parseInt(isize, tok, 10);
                 literal.val = val;
                 // already have a left child so this must be right
@@ -112,13 +114,13 @@ const Parser = struct {
                 else { // must be left side
                     current_node.left = literal;
                 }
-                std.debug.print("root3: {}\n", .{self.root});
+                //std.debug.print("root3: {}\n", .{self.root});
 
                 // don't append literals to stack
             }
         }
 
-        std.debug.print("root: {}\n", .{self.root});
+        //  std.debug.print("root: {}\n", .{self.root});
 
         //return null;
     }
@@ -171,10 +173,12 @@ fn split(n: *Node) !void {
     n.val = null;
 
     var left = try n.allocator.create(Node);
-    left.init(99999, n, n.allocator);
+    left.init(next_id, n, n.allocator);
+    next_id += 1;
     left.val = l_val;
     var right = try n.allocator.create(Node);
-    right.init(999999, n, n.allocator);
+    right.init(next_id, n, n.allocator);
+    next_id += 1;
     right.val = r_val;
 
     n.left = left;
@@ -193,10 +197,17 @@ fn explode(parent: *Node, inOrderTree: ArrayList(*Node)) void {
         }
     }
 
+    var l_id = @ptrToInt(lhs);
+    var r_id = @ptrToInt(rhs);
+
     // update first literal to the left
     var ctr: isize = @intCast(isize, idx);
     while (ctr >= 0) : (ctr -= 1) {
-        if (inOrderTree.items[@intCast(usize, ctr)].id == lhs.id) {
+        //        if (inOrderTree.items[@intCast(usize, ctr)].id == lhs.id) {
+        //continue;
+        //        }
+        if (@ptrToInt(inOrderTree.items[@intCast(usize, ctr)]) == l_id) {
+            std.debug.print("skipping left", .{});
             continue;
         }
         if (inOrderTree.items[@intCast(usize, ctr)].val) |val| {
@@ -205,9 +216,13 @@ fn explode(parent: *Node, inOrderTree: ArrayList(*Node)) void {
         }
     }
     // update first literal to the right
-    ctr = @intCast(isize, idx);
+    ctr = @intCast(isize, idx) + 1;
     while (ctr < inOrderTree.items.len) : (ctr += 1) {
-        if (inOrderTree.items[@intCast(usize, ctr)].id == rhs.id) {
+        // if (inOrderTree.items[@intCast(usize, ctr)].id == rhs.id) {
+        //continue;
+        // }
+        if (@ptrToInt(inOrderTree.items[@intCast(usize, ctr)]) == r_id) {
+            std.debug.print("skipping right", .{});
             continue;
         }
         if (inOrderTree.items[@intCast(usize, ctr)].val) |val| {
@@ -263,6 +278,16 @@ fn reduce_split(n: *Node) ParserError!bool {
     return false;
 }
 
+fn add(l: *Node, r: *Node, allocator: *Allocator) !*Node {
+    var parent = try allocator.create(Node);
+    parent.init(next_id, null, allocator);
+    next_id += 1;
+    parent.left = l;
+    parent.right = r;
+
+    return parent;
+}
+
 //pub fn printNode(n: *Node) void {
 ////std.debug.print("n: {}\n", .{n});
 //if (n.left) |left| {
@@ -282,10 +307,16 @@ fn reduce_split(n: *Node) ParserError!bool {
 pub fn print(n: *Node) void {
     //std.debug.print("n: {}\n", .{n});
     if (n.left) |left| {
+        if (n.val) |val| {
+            unreachable;
+        }
         std.debug.print("[", .{});
         print(left);
     }
     if (n.right) |right| {
+        if (n.val) |val| {
+            unreachable;
+        }
         std.debug.print(",", .{});
         print(right);
         std.debug.print("]", .{});
@@ -304,6 +335,8 @@ pub fn print(n: *Node) void {
 //}
 //
 pub fn reduce(n: *Node, allocator: *Allocator) !void {
+    std.debug.print("starting reduce\n", .{});
+
     while (true) {
         var inOrderNodes = ArrayList(*Node).init(allocator);
         defer inOrderNodes.deinit();
@@ -311,6 +344,10 @@ pub fn reduce(n: *Node, allocator: *Allocator) !void {
 
         if (reduce_explode(n, 0, inOrderNodes)) {
             std.debug.print("explode\n", .{});
+            std.debug.print("post explode: \n", .{});
+            print(n);
+            std.debug.print("\n", .{});
+
             continue;
         }
         if (try reduce_split(n)) {
@@ -319,6 +356,141 @@ pub fn reduce(n: *Node, allocator: *Allocator) !void {
         }
         break;
     }
+}
+
+pub fn parse(buf: []const u8, allocator: *Allocator) !*Node {
+    var stack = ArrayList(*Node).init(allocator);
+    //try alloc_stuff(&arena.allocator);
+    var parser = Parser{ .allocator = allocator, .buffer = buf, .idx = 0, .stack = stack };
+    _ = try parser.parse();
+    return parser.root.left.?;
+}
+
+pub fn magnitude(n: *Node) usize {
+    var sum: usize = 0;
+    if (n.val) |val| {
+        return @intCast(usize, val);
+    }
+    if (n.left) |left| {
+        sum += 3 * magnitude(left);
+        //return 3*magnitude(left);
+    }
+    if (n.right) |right| {
+        sum += 2 * magnitude(right);
+    }
+    return sum;
+}
+
+test "part 1" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const input = std.mem.trim(u8, @embedFile("./input.txt"), "\n");
+
+    //var fbs = std.io.fixedBufferStream(input);
+    var line_it = std.mem.split(input, "\n");
+    var first_raw = line_it.next().?;
+    var accumulator = try parse(first_raw, &arena.allocator);
+
+    while (line_it.next()) |line| {
+        var rhs = try parse(line, &arena.allocator);
+        accumulator = try add(accumulator, rhs, &arena.allocator);
+        try reduce(accumulator, &arena.allocator);
+    }
+
+    // 2015 too low
+
+    std.debug.print("final:\n", .{});
+    print(accumulator);
+    std.debug.print("\n", .{});
+    std.debug.print("magnitude: {}\n", .{magnitude(accumulator)});
+}
+
+test "part 2" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var lines = ArrayList([]const u8).init(&arena.allocator);
+
+    const input = std.mem.trim(u8, @embedFile("./input.txt"), "\n");
+    var line_it = std.mem.split(input, "\n");
+
+    while (line_it.next()) |line| {
+        try lines.append(line);
+    }
+
+    var max: usize = 0;
+
+    var x: usize = 0;
+    while (x < lines.items.len) : (x += 1) {
+        var y: usize = 0;
+        while (y < lines.items.len) : (y += 1) {
+            if (x == y) {
+                continue;
+            }
+
+            var lhs = try parse(lines.items[x], &arena.allocator);
+            var rhs = try parse(lines.items[y], &arena.allocator);
+            var parent = try add(lhs, rhs, &arena.allocator);
+            try reduce(parent, &arena.allocator);
+            max = std.math.max(max, magnitude(parent));
+        }
+    }
+    std.debug.print("Max: {}\n", .{max});
+}
+
+test "explode" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    var input = "[[[[[1,1],[2,2]],[3,3]],[4,4]],[5,5]]";
+    var n = try parse(input, &arena.allocator);
+
+    try reduce(n, &arena.allocator);
+    std.debug.print("\n", .{});
+    print(n);
+    std.debug.print("\n", .{});
+}
+
+test "sample" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    //    var input =
+    //\\[1,1]
+    //\\[2,2]
+    //\\[3,3]
+    //\\[4,4]
+    //    ;
+    var input =
+        \\[1,1]
+        \\[2,2]
+        \\[3,3]
+        \\[4,4]
+        \\[5,5]
+    ;
+    //var fbs = std.io.fixedBufferStream(input);
+    var line_it = std.mem.split(input, "\n");
+    var first_raw = line_it.next().?;
+    var accumulator = try parse(first_raw, &arena.allocator);
+
+    while (line_it.next()) |line| {
+        var rhs = try parse(line, &arena.allocator);
+        accumulator = try add(accumulator, rhs, &arena.allocator);
+
+        std.debug.print("added: \n", .{});
+        print(accumulator);
+        std.debug.print("\n", .{});
+        try reduce(accumulator, &arena.allocator);
+        std.debug.print("post reduce: \n", .{});
+        print(accumulator);
+        std.debug.print("\n", .{});
+    }
+
+    std.debug.print("final:\n", .{});
+    print(accumulator);
+    std.debug.print("\n", .{});
+    std.debug.print("magnitude: {}\n", .{magnitude(accumulator)});
 }
 
 test "blah" {
@@ -338,46 +510,33 @@ test "blah" {
     //var buf = "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]";
     //var buf = "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]";
     //var buf = "[[[[0,7],4],[15,[0,13]]],[1,1]]";
-    var buf = "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]";
+    var buf = "[[[[4,3],4],4],[7,[[8,4],9]]]";
+    var buf2 = "[1,1]";
 
-    // The subitem depth calc is not quite right
-    // explode should trigger at only [3,2] not also at [4
-    //var buf = "[7,[6,[5,[4,[3,2]]]]";
+    var lhs = try parse(buf, &arena.allocator);
+    var rhs = try parse(buf2, &arena.allocator);
+    var combo = try add(lhs, rhs, &arena.allocator);
 
-    var stack = ArrayList(*Node).init(&arena.allocator);
-    //try alloc_stuff(&arena.allocator);
-    var parser = Parser{ .allocator = &arena.allocator, .buffer = buf, .idx = 0, .stack = stack, .next_id = 0 };
-    _ = try parser.parse();
-
-    std.debug.print("root_id: {}\n", .{parser.root.id});
-    print(parser.root.left.?);
+    //std.debug.print("root_id: {}\n", .{parser.root.id});
+    std.debug.print("Combo:\n", .{});
+    print(combo);
     std.debug.print("\n", .{});
 
-    var inOrderNodes = ArrayList(*Node).init(&arena.allocator);
-    try inOrder(parser.root.left.?, &inOrderNodes);
-    for (inOrderNodes.items) |n| {
-        if (n.val) |val| {
-            std.debug.print("{},", .{val});
-        }
-    }
+    // var inOrderNodes = ArrayList(*Node).init(&arena.allocator);
+    //try inOrder(parser.root.left.?, &inOrderNodes);
+    //for (inOrderNodes.items) |n| {
+    //if (n.val) |val| {
+    //std.debug.print("{},", .{val});
+    //}
+    // }
     std.debug.print("\n", .{});
 
     std.debug.print("reducing...\n", .{});
-    try reduce(parser.root.left.?, &arena.allocator);
-    print(parser.root.left.?);
+    //try reduce(parser.root.left.?, &arena.allocator);
+    // print(parser.root.left.?);
+    try reduce(combo, &arena.allocator);
+    print(combo);
     std.debug.print("\n", .{});
-
-    //_ = reduce_explode(parser.root.left.?, 0, inOrderNodes);
-    // _ = try reduce_split(parser.root.left.?);
-    //std.debug.print("\n", .{});
-    //print(parser.root.left.?);
-    //std.debug.print("\n", .{});
-    //_ = try reduce_split(parser.root.left.?);
-    //print(parser.root.left.?);
-    //std.debug.print("\n", .{});
-    //_ = try reduce_explode(parser.root.left.?);
-    //print(parser.root.left.?);
-    // std.debug.print("\n", .{});
 }
 
 pub fn alloc_stuff(allocator: *Allocator) !void {
