@@ -262,6 +262,29 @@ pub fn parse(buffer: []const u8, allocator: *Allocator) !Grid {
     };
 }
 
+test "part 2" {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const input = std.mem.trim(u8, @embedFile("./input.txt"), "\n");
+    var grid = try parse(input, &arena.allocator);
+
+    var unknown = false;
+    var ctr: usize = 0;
+    while (ctr < 50) : (ctr += 1) {
+        try enhance(&grid, unknown, &arena.allocator);
+        unknown = !unknown;
+    }
+
+    //    debug_big(grid, false);
+    //try enhance(&grid, false, &arena.allocator);
+    //debug_big(grid, true);
+    //try enhance(&grid, true, &arena.allocator);
+    //    debug_big(grid, false);
+    std.debug.print("true count: {}\n", .{trueCount(grid)});
+    // 5938 too high
+}
+
 test "part 1" {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
